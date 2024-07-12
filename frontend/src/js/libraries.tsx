@@ -943,74 +943,85 @@ export default class Libraries extends React.Component<
                     color: "#0676d8",
                   }}
                 >
-                  <Typography variant="h6">CHANGELOG</Typography>
-                  <div
-                    style={{
-                      overflowY: "auto",
-                      maxHeight: "200px",
-                      backgroundColor: "#424242",
-                      padding: "8px",
-                      borderRadius: "4px",
-                      scrollBehavior: "smooth",
-                      scrollSnapType: "y mandatory",
-                      overscrollBehavior: "contain",
-                      // Set the default scroll position to the bottom, this took a long time to figure out!! -- Some of these options are not nessecary
-                      display: "flex",
-                      flexDirection: "column-reverse",
-                    }}
-                  >
-                    <List>
-                    
-                      {this.props.library_versions_api.state.current_version
-                        .changelogs &&  this.props.library_versions_api.state.current_version
-                        .changelogs.length > 0 ?(
-                        this.props.library_versions_api.state.current_version.changelogs.map(
-                          (currItem, index) => (
-                            <ListItem
-                              style={{
-                                paddingLeft: 8,
-                                paddingRight: 8,
-                                paddingTop: 4,
-                                paddingBottom: 4,
-                              }}
-                              key={index}
-                            >
-                              <Paper
-                                elevation={5}
+                    <Typography variant="h6">CHANGELOG</Typography>
+                    <div
+                      style={{
+                        overflowY: "auto",
+                        maxHeight: "200px",
+                        backgroundColor: "#424242",
+                        padding: "8px",
+                        borderRadius: "4px",
+                        scrollBehavior: "smooth",
+                        scrollSnapType: "y mandatory",
+                        overscrollBehavior: "contain",
+                        display: "flex",
+                        flexDirection: "column-reverse",
+                      }}
+                    >
+                      <List>
+                        {this.props.library_versions_api.state.current_version
+                          .changelogs &&
+                          this.props.library_versions_api.state.current_version
+                            .changelogs.length > 0 ? (
+                          this.props.library_versions_api.state.current_version.changelogs.map(
+                            (currItem, index) => (
+                              <ListItem
+                                alignItems="flex-start"
                                 style={{
-                                  padding: "8px",
-                                  margin: "10px",
-                                  backgroundColor: "#252525",
-                                  color: "#0676d8",
+                                  paddingLeft: 8,
+                                  paddingRight: 8,
+                                  paddingTop: 4,
+                                  paddingBottom: 4,
                                 }}
+                                key={index}
                               >
-                                <ListItemText
-                                  primary={
-                                    <span
-                                      style={{
-                                        fontFamily: "monospace",
-                                        marginLeft: "8px",
-                                      color : "#FFC627",
+                                <Paper
+                                  elevation={5}
+                                  style={{
+                                    padding: "8px",
+                                    margin: "10px",
+                                    backgroundColor: "#252525",
+                                    color: "#0676d8",
+                                  }}
+                                >
+                                  <ListItemText
+                                    primary={
+                                      <span
+                                        style={{
+                                          fontFamily: "monospace",
+                                          marginLeft: "8px",
+                                          color: "#FFC627",
+                                        }}
+                                      >
+                                        {currItem.change_description}
+                                      </span>
+                                    }
+                                  />
+                                  <Typography
+                                    variant="body2"
+                                    style={{
+                                      marginLeft: "8px",
+                                      color: "#FFC627",
+                                      fontWeight: "bold",
+                                      fontSize: "0.8rem",
                                     }}
                                   >
-                                    {currItem.change_description} {this.formatDateTime(currItem.change_date)}
-                                  </span>
-                                }
-                              />
-                              </Paper>
-                            </ListItem>
+                                    {this.formatDateTime(currItem.change_date)}
+                                  </Typography>
+                                </Paper>
+                              </ListItem>
+                            )
                           )
-                        )
-                      ) :(
-                        <ListItem>
-                          <ListItemText primary="No changelog available" />
-                        </ListItem>
-                      )}
-                    </List>
-                  </div>
+                        ) : (
+                          <ListItem>
+                            <ListItemText primary="No changelog available" />
+                          </ListItem>
+                        )}
+                      </List>
+                    </div>
                 </Paper>
               </Grid>
-            )}
+            )}  
           </Grid>
           <Grid item sm={6}>
             <Button

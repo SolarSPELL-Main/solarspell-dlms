@@ -150,6 +150,7 @@ export default class GlobalState extends React.Component<GlobalStateProps, Globa
         this.set_sorting = this.set_sorting.bind(this)
         this.bulk_download = this.bulk_download.bind(this)
         this.delete_selection = this.delete_selection.bind(this)
+        this.download_selection = this.download_selection.bind(this)
         this.bulk_edit = this.bulk_edit.bind(this)
 
         //MetadataAPI
@@ -375,8 +376,7 @@ export default class GlobalState extends React.Component<GlobalStateProps, Globa
                     draft.contents_api.loaded_content = rows
                     draft.contents_api.display_rows = display_rows
                     draft.contents_api.total_count = data.count
-                    draft.contents_api.selection = []
-                })
+                                    })
             }
         } catch(err) {
             if (err.data.error.detail === "Invalid page.") {
@@ -461,6 +461,18 @@ export default class GlobalState extends React.Component<GlobalStateProps, Globa
             .map(selected_idx => this.state.contents_api.loaded_content[selected_idx])
             .map(this.delete_content))
             .then(this.load_content_rows)
+    }
+
+    //Download content items selected, output==> spreadsheet
+    async download_selection() {
+        const selectedContents = this.state.contents_api.selection
+            .map(selected_idx => this.state.contents_api.loaded_content[selected_idx]);
+
+        const fileNames = selectedContents.map(content => content.title);
+
+        return window.open(APP_URLS.CONTENT_DOWNLOAD_SELECTED(fileNames));
+
+        
     }
 
     //Exposes the update_state function only for the search state
@@ -1148,6 +1160,7 @@ export default class GlobalState extends React.Component<GlobalStateProps, Globa
                     set_sorting: this.set_sorting,
                     bulk_download: this.bulk_download,
                     delete_selection: this.delete_selection,
+                    download_selection: this.download_selection,
                     bulk_edit: this.bulk_edit,
                 },
                 lib_assets_api: {

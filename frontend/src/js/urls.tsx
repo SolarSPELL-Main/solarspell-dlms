@@ -15,6 +15,7 @@ function url_with_params(urlstr: string, params:[string, any][]=[]) {
 
 function get_filters_arr(page?: number, size?: number, filters?: content_filters, exclude_if_in_version?: LibraryVersion): [string, any][] {
     const content_filter = filters || {}
+    console.log(content_filter)
     const {
         title, display_title, years, filename, copyright_notes, active, metadata, sort, file_sizes, reviewed_on, duplicatable
     } = content_filter
@@ -43,7 +44,13 @@ function get_filters_arr(page?: number, size?: number, filters?: content_filters
     if (!isUndefined(sort)) filters_arr.push(["sort", sort])
     if (!isUndefined(duplicatable)) filters_arr.push(["duplicatable", duplicatable])
     if (!isUndefined(exclude_if_in_version)) filters_arr.push(["exclude_in_version", exclude_if_in_version.id])
-    return filters_arr
+    
+
+    console.log(filters_arr)
+  return filters_arr
+}
+function createNameContentTuples(contentArr: string[]): [string, any][] {
+    return contentArr.map(content => ["content_names", content.replace(/\.pdf$/, '')]);
 }
 
 const APP_URLS = {
@@ -54,6 +61,7 @@ const APP_URLS = {
         url_with_params(`${api_path}/contents/`, get_filters_arr(page, size, filters, exclude_if_in_version)),
     CONTENT_ITEM: (id: number) => url_with_params(`${api_path}/contents/${id}/`),
     CONTENT_BULK: url_with_params(`${api_path}/content_bulk_add/`),
+    CONTENT_DOWNLOAD_SELECTED: (content_arr : string[]) => url_with_params(`${api_path}/contents/get_spreadsheet_params/`, createNameContentTuples(content_arr)),
     CONTENT_BULK_DOWNLOAD: (filters?: content_filters) =>
         url_with_params(`${api_path}/contents/get_spreadsheet/`, get_filters_arr(undefined, undefined, filters)),
     CONTENT_FOLDER: url_with_params("media/contents/"),

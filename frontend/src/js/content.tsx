@@ -45,6 +45,9 @@ interface ContentModals {
     delete_content: {
         is_open: boolean
     }
+    download_content:{
+        is_open:boolean
+    }
     bulk_add: {
         is_open: boolean
     }
@@ -108,6 +111,9 @@ export default class Content extends Component<ContentProps, ContentState> {
             },
             delete_content: {
                 is_open: false,
+            },
+            download_content:{
+                is_open:false,
             },
             bulk_add: {
                 is_open: false,
@@ -184,6 +190,19 @@ export default class Content extends Component<ContentProps, ContentState> {
                 >Delete Selected
                 </Button>
                 <Button
+                    onClick={_ => this.update_state(draft => {
+                        draft.modals.download_content.is_open = true
+                    })}
+                    style={{
+                        marginLeft: "1em",
+                        marginBottom: "1em",
+                        backgroundColor: "#0676d8",
+                        color: "#FFFFFF"
+                    }}
+                >Download Selected
+                </Button>
+
+                <Button
                     onClick={_ => {
                         this.update_state(draft => {
                             draft.modals.bulk_add.is_open = true
@@ -198,7 +217,10 @@ export default class Content extends Component<ContentProps, ContentState> {
                 >Add Bulk Content
                 </Button>
                 <Button
-                    onClick={_ => this.props.contents_api.bulk_download()}
+                    onClick={_ => {
+                        this.update_state(draft => {
+                            draft.modals.bulk_download.is_open = true
+                        })}}
                     style={{
                         marginLeft: "1em",
                         marginBottom: "1em",
@@ -283,6 +305,33 @@ export default class Content extends Component<ContentProps, ContentState> {
                     )]}
                 >
                     <Typography>This action is irreversible</Typography>
+                </ActionDialog>
+                <ActionDialog
+                    title={`Download ${this.props.contents_api.state.selection.length} Content Item(s)?`}
+                    open={this.state.modals.download_content.is_open}
+                    get_actions={(focus_ref: any) => [(
+                        <Button
+                            key={1}
+                            onClick={()=> {
+                                this.props.contents_api.download_selection()
+                                this.close_modals()
+                            }}
+                            color="secondary"
+                        >
+                           Download 
+                        </Button>
+                    ), (
+                        <Button
+                            key={2}
+                            onClick={this.close_modals}
+                            color="primary"
+                            ref={focus_ref}
+                        >
+                            Cancel
+                        </Button>
+                    )]}
+                >
+                    <Typography>Download will be available via spreadsheet</Typography>
                 </ActionDialog>
                 <ActionDialog
                     title="Bulk Download"

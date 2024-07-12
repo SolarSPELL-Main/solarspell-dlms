@@ -1,5 +1,6 @@
 from rest_framework import viewsets, permissions, views
-import logging
+import time 
+from django.db.models import Prefetch
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import action, api_view, renderer_classes
@@ -192,7 +193,80 @@ class ContentViewSet(StandardDataView, viewsets.ModelViewSet):
                 pass
 
         return queryset
-    
+    #SPREADSHEET WITH FILTERS
+    @action(methods=['get'], detail=False)
+    def get_spreadsheet_params(self, request):
+        print("INIT SPREADSHEET PROCESS")
+        start_time = time.time()
+        output = io.BytesIO()
+
+        workbook = xlsxwriter.Workbook(output, {'remove_timezone': True})
+        worksheet = workbook.add_worksheet()
+        
+        content_fields = [
+            "title", "display_title", "file_name", "description", "modified_on", "copyright_notes",
+            "rights_statement", "additional_notes", "published_date", "reviewed_on", "active",
+            "duplicatable", "filesize"
+        ]
+
+        field_display_names = [
+            "Title", "Display Title", "File Name", "Description", "Modified On", "Copyright Notes",
+            "Rights Statement", "Additional Notes", "Year Published", "Reviewed On", "Active",
+            "Duplicatable", "Filesize"
+        ]
+        content_names = request.query_params.getlist('content_names')
+        
+        start_metadata_query_time = time.time()
+        metadata_types = MetadataType.objects.all().order_by("name")
+        metadata_query_time = time.time() - start_metadata_query_time
+        print(f"Metadata query time: {metadata_query_time} seconds")
+
+        start_header_time = time.time()
+        for col_num, field_name in enumerate(field_display_names):
+            worksheet.write(0, col_num, field_name)
+
+        for type_num, metadata in enumerate(metadata_types):
+            worksheet.write(0, len(content_fields) + type_num, metadata.name)
+        header_time = time.time() - start_header_time
+        print(f"Header writing time: {header_time} seconds")
+        start_data_time = time.time()
+        
+        row_num = 1 # iterator
+        for name in content_names:
+            try:
+                content = Content.objects.get(title__iexact=name)
+                for col_num, field_name in enumerate(content_fields):
+                    attr = getattr(content, field_name, "")
+                    to_write = str(attr) if not isinstance(attr, datetime.date) else attr.strftime("%m/%d/%Y, %H:%M:%S")
+                    worksheet.write(row_num, col_num, to_write)
+
+                print(f"ROW {row_num} CONTENT FINISHED")
+                for type_num, metadata in enumerate(metadata_types):
+                    worksheet.write(
+                        row_num,
+                        type_num + len(content_fields),
+                        " | ".join([metadata.name for metadata in content.metadata.filter(type=metadata).all()])
+                    )
+                print(f"ROW {row_num} METADATA FINISHED")
+                row_num += 1
+            except Content.DoesNotExist:
+                print(f"Content with title '{name}' does not exist")
+
+        data_time = time.time() - start_data_time
+        print(f"Data writing time: {data_time} seconds")
+        workbook.close()
+        output.seek(0)
+        filename = 'content-details-{}.xlsx'.format(datetime.datetime.now().strftime("%m-%d-%Y"))
+        response = HttpResponse(
+            output,
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        response['Content-Disposition'] = 'attachment; filename={}'.format(filename)
+        total_time = time.time() - start_time
+        print(f"Total execution time: {total_time} seconds")
+
+        return response  
+ 
     @action(methods=['get'], detail=False)
     def get_spreadsheet(self, request):
         output = io.BytesIO()
@@ -218,20 +292,24 @@ class ContentViewSet(StandardDataView, viewsets.ModelViewSet):
 
         for type_num, metadata in enumerate(metadata_types):
             worksheet.write(0, len(content_fields) + type_num, metadata.name)
-
-        for row_num, content in enumerate(self.get_queryset()):
+        metadata_prefetch = Prefetch('metadata', queryset=Metadata.objects.select_related('type').order_by('name'))
+        content_queryset = self.get_queryset().prefetch_related(metadata_prefetch)
+        for row_num, content in enumerate(content_queryset):
             for col_num, field_name in enumerate(content_fields):
                 attr = getattr(content, field_name, "")
                 to_write = str(attr) if not isinstance(attr, datetime.date) else attr.strftime("%m/%d/%Y, %H:%M:%S")
                 worksheet.write(row_num + 1, col_num, to_write)
 
+            metadata_dict = {md.name: [] for md in metadata_types}
+            for metadata in content.metadata.all():
+                metadata_dict[metadata.type.name].append(metadata.name)
+            
             for type_num, metadata in enumerate(metadata_types):
                 worksheet.write(
                     row_num + 1,
                     type_num + len(content_fields),
-                    " | ".join([metadata.name for metadata in content.metadata.filter(type=metadata).all()])
+                    " | ".join(metadata_dict[metadata.name])
                 )
-
         workbook.close()
         output.seek(0)
 
@@ -244,6 +322,8 @@ class ContentViewSet(StandardDataView, viewsets.ModelViewSet):
         response['Content-Disposition'] = 'attachment; filename={}'.format(filename)
         return response
 
+
+  
 class MetadataViewSet(StandardDataView, viewsets.ModelViewSet):
     queryset = Metadata.objects.all()
     serializer_class = MetadataSerializer
@@ -306,7 +386,7 @@ class LibraryVersionViewSet(StandardDataView, viewsets.ModelViewSet):
         metaName = MetadataType.objects.get(id=metadata_type_id).name
         # Create Changelog entry
         description = f"Added metadata type '{metaName}' to library version {version.version_number}"
-        Changelog.objects.create(library_version_id=pk, change_description=description)
+        Changelog.objects.create(library_version=version, change_description=description)
 
         print(version.metadata_types )
         return build_response(LibraryVersionSerializer(version).data)
@@ -328,7 +408,7 @@ class LibraryVersionViewSet(StandardDataView, viewsets.ModelViewSet):
         )
         metaName = MetadataType.objects.get(id=metadata_type_id).name
         description = f"Removed metadata type '{metaName}' to library version {version.version_number}"
-        Changelog.objects.create(library_version_id=pk, change_description=description)
+        Changelog.objects.create(library_version = version, change_description=description)
 
         print(version.metadata_types)
         return build_response(LibraryVersionSerializer(version).data)
@@ -358,13 +438,13 @@ class LibraryVersionViewSet(StandardDataView, viewsets.ModelViewSet):
 
     @action(methods=['post'], detail=True)
     def addmodule(self, request, pk=None):
-        print("REACHED")
+        
                 
         logger = logging.getLogger("mylogger")
         logger.info("Whatever to log")
         
         if pk is None:
-            print("No PK")
+            
             return build_response(
                 status=status.HTTP_400_BAD_REQUEST,
                 success=False,
@@ -372,7 +452,7 @@ class LibraryVersionViewSet(StandardDataView, viewsets.ModelViewSet):
             )
         library_module_id = request.data.get("library_module_id", None)
         if library_module_id is None:
-            print("No ID")
+            
             return build_response(
                 status=status.HTTP_400_BAD_REQUEST,
                 success=False,
@@ -525,7 +605,7 @@ class LibraryFolderViewSet(StandardDataView, viewsets.ModelViewSet):
     
     @action(methods=['post'], detail=True)
     def addcontent(self, request, pk=None):
-        print("yaya")
+        
         if pk is None:
             return build_response(
                 status=status.HTTP_400_BAD_REQUEST,
@@ -604,23 +684,25 @@ class LibraryFolderViewSet(StandardDataView, viewsets.ModelViewSet):
             to_move.parent = destination
             to_move.save()
             update_child_version(to_move, destination.version)
-            folderName = LibraryFolder.objects.get(id=int(folder_id)).folder_name
-            description = f"Moved Folder {folderName}  to folder {destination.folder_name}"
-            Changelog.objects.create(library_version=destination.version_id, change_description=description)
+            folderName =to_move.folder_name
+            description = f"Moved Folder {folderName}  to Folder {destination.folder_name}"
+            Changelog.objects.create(library_version=destination.version, change_description=description)
 
             return build_response()
 
         if version_id is not None:
             destination = LibraryVersion.objects.get(id=int(version_id))
             to_move = LibraryFolder.objects.get(id=pk)
+            to_move_ver = to_move.version
             to_move.parent = None
             to_move.save()
             update_child_version(to_move, destination)
 
-            description = f"Moved Folder {to_move.folder_name}  to Folder {destination.folder_name}"
-            Changelog.objects.create(library_version=destination.version_id, change_description=description)
+            description = f"Moved Folder {to_move.folder_name} from Library  {to_move_ver.library_name} {to_move_ver.version_number} to Library {destination.library_name} {destination.version_number}"
+            Changelog.objects.create(library_version=destination, change_description=description)
+            Changelog.objects.create(library_version=to_move_ver, change_description=description)
             return build_response()
-
+        
         return build_response(
             status=status.HTTP_400_BAD_REQUEST,
             success=False,
@@ -654,14 +736,16 @@ class LibraryFolderViewSet(StandardDataView, viewsets.ModelViewSet):
             destination = LibraryFolder.objects.get(id=int(folder_id))
             to_move = LibraryFolder.objects.get(id=pk)
             copy_children_and_update(to_move, destination.version, destination)
-            description = f"Moved content {content.title} (ID: {content.id}) from folder {folder.folder_name} (ID: {folder.id})"
-            Changelog.objects.create(library_version=folder.version, change_description=description)
+            description = f"Copied folder {to_move.folder_name} to folder {destination.folder_name}"
+            Changelog.objects.create(library_version=destination.version, change_description=description)
             return build_response()
 
         if version_id is not None:
             destination = LibraryVersion.objects.get(id=int(version_id))
             to_move = LibraryFolder.objects.get(id=pk)
             copy_children_and_update(to_move, destination, None)
+            description = f"Copied folder {to_move.folder_name} to LibraryVersion {destination.library_name} {destination.version_number}"
+            Changelog.objects.create(library_version=destination, change_description=description)
             return build_response()
 
         return build_response(
@@ -669,6 +753,36 @@ class LibraryFolderViewSet(StandardDataView, viewsets.ModelViewSet):
             success=False,
             error="No Destination Library or Folder supplied"
         )
+
+    def find_content_in_folders(folder, content_id):
+        """
+        Recursively search for specific content in the given folder and its subfolders.
+        """
+        found_in_folders = []
+
+        # Check if the content is in the current folder
+        if folder.library_content.filter(id=content_id).exists():
+            found_in_folders.append(folder.id)
+
+        # Recur through subfolders
+        subfolders = folder.subfolders.all()
+        for subfolder in subfolders:
+            found_in_folders.extend(find_content_in_folders(subfolder, content_id))
+
+        return found_in_folders
+
+    def search_content_view(request, folder_id, content_id):
+        """
+        View to search for specific content in the folder and its subfolders.
+        """
+        folder = get_object_or_404(LibraryFolder, id=folder_id)
+        found_in_folders = find_content_in_folders(folder, content_id)
+        response_data = {
+            'content_id': content_id,
+            'found_in_folders': found_in_folders,
+        }
+
+        return build_response(response_data)
 
 
 class LibraryModuleViewSet(StandardDataView, viewsets.ModelViewSet):

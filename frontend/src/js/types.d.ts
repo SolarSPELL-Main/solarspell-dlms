@@ -96,6 +96,7 @@ type ContentsAPI = {
     edit_content: (fields: content_fields, to_edit: SerializedContent) => Promise<any>
     delete_content: (to_delete: SerializedContent) => Promise<any>
     delete_selection: () => Promise<any>
+    download_selection: () => Promise<any>
     update_search_state: (update_func: (draft: search_state) => void) => Promise<any>
     add_selected_to_folder: (folder: LibraryFolder) => Promise<any>
     set_selection: (selection: any[]) => Promise<any>
